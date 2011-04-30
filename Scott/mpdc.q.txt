@@ -1,0 +1,52 @@
+# Copyright David W. Scott     February 5, 2004   
+# June 10, 2001
+
+# Multivariate Partial Density Component Estimation (mpdc)
+
+# Purpose:  fit model   w N(mu,sig)
+
+# Inputs:
+#          x - n x d input data matrix (d=1 vector OK)
+#         mu - input guess for mean (default is sample mean)
+#        sig - d x d input guess for covariance matrix (default is sample)
+#          w - input guess for weight (default w=1)
+#	sig0 - (do not use)
+
+# Output:
+#          list containing estimated  (m=mean sig=sig w=w)
+
+mpdc <- function(x,mu,sig,w,sig0) {
+  if(is.matrix(x)) { assign("X",x,f=1); n_nrow(x); d_ncol(x) }
+    else { n_length(x); d_1; assign("X",matrix(x,n,1),f=1) }
+  assign("n",n,f=1); assign("d",d,f=1)
+  assign("onen",rep(1,n),f=1); assign("oned",rep(1,d),f=1)
+
+  if(missing(mu)) { mu _ mean(x); if(d>1) {mu_apply(x,2,"mean")} }
+    else { if(length(mu)!=d) { stop("mu wrong length") } }
+  if(missing(w)) { w_1 } else {if(w<=0) stop("w must be positive")}
+  if(missing(sig)) { sig _ var(x) }
+    else { if(length(sig)!=d*d) { stop("sig wrong size") } }
+  if(missing(sig0)) { sig0 _ diag(d) }
+    else { if(length(sig0)!=d*d) { stop("sig0 wrong size") } }
+  dU0 _ diag(chol(sig0)); assign("dU0",dU0,f=1)	# for determinate of sig0
+
+ pdc _ function(x) { mu _ x[1:d]; U _ matrix(0,d,d); k _ d*(d+3)/2
+    U[row(U)<=col(U)] _ x[(d+1):k]; dU _ exp(diag(U)); diag(U) _ dU
+    w _ exp(x[k+1])
+    t1 _ exp( sum( log(dU) + log(dU0) ) )  # cholesky of sig0 and sig-inv
+    t2 _ sum( exp( (-.5* ( (X-outer(onen,mu))%*%t(U) )**2) %*%oned ) )
+    w^2*t1 - 2*w/n*2**(d/2)*prod(dU)*t2 + 1
+ }
+
+  if(d==1) { xU0 _ log(1/sig0) } else { tmp_solve(sig); sigi _ (tmp+t(tmp))/2
+    U0 _ chol(sigi); diag(U0) _ log(diag(U0)); xU0 _ U0[row(U0)<=col(U0)]}
+  x0 _ c(mu,xU0,log(w))
+  ans _ nlmin(pdc,x0,print.level=pl,max.fcal=150,max.iter=80)
+  m.ans _ ans$x[1:d];  k_d*(d+3)/2; w.ans _ exp(ans$x[k+1])
+  U.ans _ matrix(0,d,d); U.ans[row(U.ans)<=col(U.ans)] _ ans$x[(d+1):k]
+    diag(U.ans) _ exp(diag(U.ans)); sigi _ t(U.ans) %*% U.ans;
+    sig.ans _ solve(sigi)
+
+  list(m=m.ans,sig=sig.ans,w=w.ans)
+}
+

@@ -1,0 +1,51 @@
+# Copyright David W. Scott     February 5, 2004   
+
+# Partial L2E multivariate linear regression
+
+# Purpose:  fit model   y = a + t(b)*x + e  by L2E
+
+#	the error distribution can be either  N(0,sig^2)  or  w N(0,sig^2)
+
+# Inputs:
+#          x - n x p input data matrix (p=1 vector OK)
+#          y - n responses
+#        xin - input guesses for (a,b,sig) length 1+p+1
+#		defaults = c(mean(y),0,..,0,sd(y))
+#      w.opt - False (default e ~ N(0,sig^2) or  True (e ~ w N(0,sig^2))
+#        win - fixed value for w   or   initial guess for w (see w.opt)
+#         pl - print level for nlmin (1=default  0=none)
+
+# Output:      list containing estimated coefficients
+#         $a - intercept
+#         $b - vector of estimated beta's
+#       $sig - estimated standard deviation of residuals
+#         $w - estimated weight (note:  w can be greater than 1)
+#       $res - residual vector
+
+
+reg.w.mat <- function(x,y,xin,w.opt=F,win=1,pl=1) {
+
+    if(!is.matrix(x)) {x <- matrix(x,length(x),1)}; p <- ncol(x)
+    if(length(y)!=nrow(x)) stop("x and y differ on n")
+
+    reg.w.mat.crit <- function(x) {
+	a <- x[1]; b <- x[2:(p+1)]; sig <- exp(x[p+2])
+	if(w.opt) { w <- exp(x[p+3]) } else { w <- win }
+	ei <- y - a - X%*%b
+	w^2/(2*sqrt(pi)*sig) - 2*w*mean(dnorm(ei,0,sig))
+    }
+
+    assign("p",p,f=1); assign("w.opt",w.opt,f=1)
+    assign("X",x,f=1); assign("y",y,f=1)
+    if(missing(xin)) { xin <- c(mean(y),rep(0,p),sqrt(var(y))) }
+    if(length(xin)!=p+2) stop("xin error")
+    x0 <- c(xin[1:(p+1)],log(xin[p+2]))
+    if(w.opt) { x0 _ c(x0,log(win)) } else { assign("win",win,f=1) }
+
+    ans <- nlmin(reg.w.mat.crit,x0,max.iter=100,max.fcal=150,print.level=pl)
+
+    a <- ans$x[1]; b <- ans$x[2:(p+1)]; sig <- exp(ans$x[p+2])
+    if(w.opt) {w <- exp(ans$x[p+3])} else {w<-win}
+
+    invisible(list(a=a,b=b,sig=sig,w=w,res=c(y-a-x%*%b)))
+}
